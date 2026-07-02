@@ -91,6 +91,21 @@ export function saveSearch(
   }
 }
 
+/** 履歴項目の削除（docs/15 3.6節）。同一条件（出発地・目的地・いつの種別）の項目を除去する */
+export function deleteSearch(
+  record: SearchRecord,
+  storage: HistoryStorage | null = defaultStorage(),
+): void {
+  if (storage === null) return;
+  const key = recordKey(record);
+  const rest = loadHistory(storage).filter((r) => recordKey(r) !== key);
+  try {
+    storage.setItem(STORAGE_KEY, JSON.stringify(rest));
+  } catch {
+    // 保存失敗は致命ではないため無視する
+  }
+}
+
 /** 「最近の検索地点」候補（docs/15 3.2節）。stop地点のみ、重複なく新しい順 */
 export function recentStopPlaces(
   storage: HistoryStorage | null = defaultStorage(),

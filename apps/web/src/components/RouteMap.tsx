@@ -2,9 +2,10 @@
 // 固定路線・徒歩レッグはポリライン、Flexレッグは「エリア内どこでも乗降可」を示す面表現（凸包）。
 // 地図の取得・描画に失敗してもテキスト情報が主であるため、グレー縮退表示に留める（地図が主にならない）。
 import { useEffect, useRef, useState, type ReactElement } from "react";
-import maplibregl, { type StyleSpecification } from "maplibre-gl";
+import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { LatLon } from "../lib/geo-hull.js";
+import { GSI_STYLE } from "../lib/gsi-style.js";
 
 export interface MapLineSegment {
   kind: "walk" | "transit" | "flexPath";
@@ -23,20 +24,6 @@ export interface RouteMapProps {
   origin?: LatLon;
   destination?: LatLon;
 }
-
-/** 地理院タイル（淡色）。出典表記必須: https://maps.gsi.go.jp/development/ichiran.html */
-const GSI_STYLE: StyleSpecification = {
-  version: 8,
-  sources: {
-    gsi: {
-      type: "raster",
-      tiles: ["https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      attribution: "地理院タイル（出典: 国土地理院）",
-    },
-  },
-  layers: [{ id: "gsi", type: "raster", source: "gsi" }],
-};
 
 const toLngLat = (p: LatLon): [number, number] => [p.lon, p.lat];
 

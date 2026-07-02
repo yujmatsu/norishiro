@@ -1,9 +1,17 @@
-// T-API-01〜04: API契約テスト（docs/13 10.5節）＋依存方向のアーキテクチャテスト
+// T-API-01〜05: API契約テスト（docs/13 10.5節、T-API-05はdocs/17 C-18の契約拡張分）
+// ＋依存方向のアーキテクチャテスト
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { isochrone, loadShard, plan, RouterInputError, type PlanRequest } from "../src/index.js";
+import {
+  isochrone,
+  loadShard,
+  plan,
+  RouterInputError,
+  type IsochroneResult,
+  type PlanRequest,
+} from "../src/index.js";
 import { buildMizuhoShard, TUESDAY } from "./helpers/mizuho-shard.js";
 
 describe("T-API-01: departureTime未指定はエラー", () => {
@@ -65,6 +73,52 @@ describe("T-API-04: isochroneのGeoJSON妥当性", () => {
       expect(["Polygon", "MultiPolygon"]).toContain(feature.geometry.type);
       expect(typeof feature.properties.cutoffSec).toBe("number");
     }
+  });
+});
+
+describe("T-API-05: isochroneのオプション（includeFlex / serviceDate。docs/15 3.7節のBefore/After用、docs/17 C-18）", () => {
+  /** featureのPolygon面積合計（度座標のshoelace。大小比較にのみ使う） */
+  function totalArea(result: IsochroneResult): number {
+    let total = 0;
+    for (const feature of result.features) {
+      if (feature.geometry.type !== "Polygon") continue;
+      const ring = (feature.geometry.coordinates as number[][][])[0]!;
+      let area = 0;
+      for (let i = 0; i < ring.length - 1; i++) {
+        area += ring[i]![0]! * ring[i + 1]![1]! - ring[i + 1]![0]! * ring[i]![1]!;
+      }
+      total += Math.abs(area) / 2;
+    }
+    return total;
+  }
+
+  it("includeFlex:false はFlexレッグを除いた到達圏を返す（面積が小さくなる）", () => {
+    loadShard(buildMizuhoShard());
+    const withFlex = isochrone({ kind: "stopId", stopId: "1" }, 36000, [3600]);
+    const withoutFlex = isochrone({ kind: "stopId", stopId: "1" }, 36000, [3600], {
+      includeFlex: false,
+    });
+    expect(withFlex.features.length).toBeGreaterThan(0);
+    expect(totalArea(withoutFlex)).toBeLessThan(totalArea(withFlex));
+  });
+
+  it("オプション省略時は includeFlex:true・シャード既定サービス日と同じ結果", () => {
+    loadShard(buildMizuhoShard());
+    const implicit = isochrone({ kind: "stopId", stopId: "1" }, 36000, [3600]);
+    const explicit = isochrone({ kind: "stopId", stopId: "1" }, 36000, [3600], {
+      includeFlex: true,
+      serviceDate: 20260706, // helperのカレンダー先頭日（既定サービス日）
+    });
+    expect(explicit).toEqual(implicit);
+  });
+
+  it("serviceDate指定は運行日判定に反映される（運行の無い日はFlex分の到達圏が消える）", () => {
+    loadShard(buildMizuhoShard());
+    const activeDay = isochrone({ kind: "stopId", stopId: "1" }, 36000, [3600]);
+    const inactiveDay = isochrone({ kind: "stopId", stopId: "1" }, 36000, [3600], {
+      serviceDate: 20250101, // カレンダー窓の外＝全trip運行なし
+    });
+    expect(totalArea(inactiveDay)).toBeLessThan(totalArea(activeDay));
   });
 });
 

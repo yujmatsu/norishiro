@@ -2,6 +2,7 @@
 // サーバー送信なし＝docs/15 8章の計測方針）
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  deleteSearch,
   loadHistory,
   recentStopPlaces,
   saveSearch,
@@ -56,6 +57,16 @@ describe("saveSearch / loadHistory", () => {
   it("壊れたJSONが保存されていても例外を投げず空扱いにする（寛容方針）", () => {
     storage.setItem("norishiro.searchHistory.v1", "{broken");
     expect(loadHistory(storage)).toEqual([]);
+  });
+});
+
+describe("deleteSearch", () => {
+  it("対象の履歴のみ削除する（docs/15 3.6節の削除操作）", () => {
+    const storage = fakeStorage();
+    saveSearch(record("1", "37", 100), storage);
+    saveSearch(record("2", "37", 200), storage);
+    deleteSearch(record("1", "37", 100), storage);
+    expect(loadHistory(storage).map((r) => r.savedAt)).toEqual([200]);
   });
 });
 

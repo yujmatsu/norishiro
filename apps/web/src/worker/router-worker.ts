@@ -6,6 +6,7 @@ import {
   isochrone,
   loadShard,
   plan,
+  type IsochroneOptions,
   type IsochroneResult,
   type Itinerary,
   type LocationRef,
@@ -29,6 +30,7 @@ export type WorkerRequest =
       origin: LocationRef;
       departureTime: number;
       cutoffs: number[];
+      options?: IsochroneOptions;
     }
   | { id: number; type: "searchStops"; query: string; limit: number }
   | { id: number; type: "stopPoints"; stopIds: string[] }
@@ -129,7 +131,7 @@ function handle(msg: WorkerRequest): WorkerResult {
     case "plan":
       return plan(msg.req);
     case "isochrone":
-      return isochrone(msg.origin, msg.departureTime, msg.cutoffs);
+      return isochrone(msg.origin, msg.departureTime, msg.cutoffs, msg.options);
     case "searchStops":
       return searchStopList(stops, msg.query, msg.limit);
     case "stopPoints":

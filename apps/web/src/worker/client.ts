@@ -1,5 +1,11 @@
 // Web WorkerへのPromiseベースRPCクライアント。UIコンポーネントはこのクラス経由で探索を呼ぶ。
-import type { IsochroneResult, Itinerary, LocationRef, PlanRequest } from "@norishiro/router";
+import type {
+  IsochroneOptions,
+  IsochroneResult,
+  Itinerary,
+  LocationRef,
+  PlanRequest,
+} from "@norishiro/router";
 import type { LatLon } from "../lib/geo-hull.js";
 import type { StopCandidate } from "../lib/stop-search.js";
 import type { StopPoint, WorkerRequest, WorkerResponse } from "./router-worker.js";
@@ -68,6 +74,7 @@ export class RouterWorkerClient {
     origin: LocationRef,
     departureTime: number,
     cutoffs: number[],
+    options?: IsochroneOptions,
   ): Promise<IsochroneResult> {
     return this.send<IsochroneResult>({
       id: this.nextId++,
@@ -75,6 +82,7 @@ export class RouterWorkerClient {
       origin,
       departureTime,
       cutoffs,
+      options,
     });
   }
 
