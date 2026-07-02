@@ -51,10 +51,12 @@ export function IsochroneMap({
       setFailed(true);
       return;
     }
+    let disposed = false;
     map.on("error", () => {
-      if (mapRef.current === null) setFailed(true);
+      if (!disposed && mapRef.current === null) setFailed(true);
     });
     map.on("load", () => {
+      if (disposed) return; // StrictMode二重マウントで先に破棄されたインスタンスは無視
       // 「あり」を下、「なし」を上に置く: 内側の灰色＝固定路線のみ、外側のオレンジ＝デマンド交通で広がる範囲
       map.addSource("iso-on", { type: "geojson", data: emptyFc(null) });
       map.addLayer({
@@ -86,6 +88,7 @@ export function IsochroneMap({
       setLoaded(true);
     });
     return () => {
+      disposed = true;
       mapRef.current = null;
       map.remove();
     };
@@ -95,16 +98,25 @@ export function IsochroneMap({
   useEffect(() => {
     const map = mapRef.current;
     if (map === null || !loaded) return;
-    (map.getSource("iso-on") as maplibregl.GeoJSONSource).setData(emptyFc(onFeature));
-    (map.getSource("iso-off") as maplibregl.GeoJSONSource).setData(emptyFc(offFeature));
+    const onSource = map.getSource("iso-on") as maplibregl.GeoJSONSource | undefined;
+    const offSource = map.getSource("iso-off") as maplibregl.GeoJSONSource | undefined;
+    if (onSource === undefined || offSource === undefined) return; // 破棄済みマップへの操作を避ける
+    onSource.setData(emptyFc(onFeature));
+    offSource.setData(emptyFc(offFeature));
   }, [onFeature, offFeature, loaded]);
 
   // 基準地点マーカーと視野合わせ（地点変更・データ読込時のみ）
   useEffect(() => {
     const map = mapRef.current;
     if (map === null || !loaded) return;
-    markerRef.current ??= new maplibregl.Marker({ color: "#2e6e4e" }).addTo(map);
-    markerRef.current.setLngLat([center.lon, center.lat]);
+    // MarkerはsetLngLatを先に呼んでからaddToする（座標未設定でaddToすると内部で座標参照に失敗する）
+    if (markerRef.current === null) {
+      markerRef.current = new maplibregl.Marker({ color: "#2e6e4e" })
+        .setLngLat([center.lon, center.lat])
+        .addTo(map);
+    } else {
+      markerRef.current.setLngLat([center.lon, center.lat]);
+    }
 
     if (boundsFeature !== null && boundsFeature.geometry.type === "Polygon") {
       const ring = (boundsFeature.geometry.coordinates as number[][][])[0]!;
