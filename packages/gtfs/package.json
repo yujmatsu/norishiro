@@ -10,6 +10,10 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@norishiro/types": "workspace:*"
+    "@norishiro/types": "workspace:*",
+    "papaparse": "^5.5.4"
+  },
+  "devDependencies": {
+    "@types/papaparse": "^5.5.2"
   }
 }

@@ -1,2 +1,3 @@
-// @norishiro/types — 実装は後続タスクで追加する（docs/08_作業計画_WBS.md参照）
-export {};
+// @norishiro/types — 共有型定義（実行コードを持たない）
+export * from "./gtfs-raw.js";
+export * from "./gtfs-normalized.js";
