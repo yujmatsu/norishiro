@@ -1,5 +1,6 @@
 // Web WorkerへのPromiseベースRPCクライアント。UIコンポーネントはこのクラス経由で探索を呼ぶ。
 import type { IsochroneResult, Itinerary, LocationRef, PlanRequest } from "@norishiro/router";
+import type { StopCandidate } from "../lib/stop-search.js";
 import type { WorkerRequest, WorkerResponse } from "./router-worker.js";
 
 export interface ShardInfo {
@@ -74,6 +75,16 @@ export class RouterWorkerClient {
       departureTime,
       cutoffs,
     });
+  }
+
+  /** 地点あいまい検索（docs/15 3.2節）。検索はシャードを保持するWorker側で行う */
+  searchStops(query: string, limit = 8): Promise<StopCandidate[]> {
+    return this.send<StopCandidate[]>({ id: this.nextId++, type: "searchStops", query, limit });
+  }
+
+  /** stopId→表示名の解決（結果一覧・詳細の表示用） */
+  stopNames(stopIds: string[]): Promise<Record<string, string>> {
+    return this.send<Record<string, string>>({ id: this.nextId++, type: "stopNames", stopIds });
   }
 
   terminate(): void {

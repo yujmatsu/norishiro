@@ -1,0 +1,256 @@
+/* 共通スタイル（docs/15 7章: 低彩度・高コントラスト、大きめ既定文字、44px以上のタップ領域） */
+
+:root {
+  --color-text: #1f2723;
+  --color-bg: #ffffff;
+  --color-primary: #2e6e4e; /* 白文字とのコントラスト比 約5.9:1（WCAG AA） */
+  --color-primary-tint: #e6f4ea;
+  --color-border: #b9c2bd;
+  --color-warning: #9a4b00; /* 白背景とのコントラスト比 約6.6:1 */
+  --color-warning-tint: #fdf3e7;
+  --color-danger: #b3261e;
+  --color-danger-tint: #fce8e6;
+  --tap-min: 44px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  /* 「標準」を一般的なWebより一段大きく（docs/15 7.2節）。3段階切替はPhase E */
+  font-size: 18px;
+}
+
+body {
+  margin: 0;
+  font-family:
+    "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", system-ui, sans-serif;
+  color: var(--color-text);
+  background: var(--color-bg);
+  line-height: 1.6;
+}
+
+.app-main {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+h1 {
+  font-size: 1.5rem;
+  line-height: 1.4;
+}
+
+/* フォーカス可視化（docs/15 5.3節） */
+:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* --- ボタン --- */
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: 10px 16px;
+  margin: 10px 0; /* 隣接ボタンとの誤タップ防止の間隔（docs/15 7.3節） */
+  border: 2px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 1rem;
+  font-family: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  min-height: 64px;
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #ffffff;
+  font-size: 1.15rem;
+  font-weight: bold;
+}
+
+.btn-back {
+  display: inline-flex;
+  width: auto;
+  min-width: var(--tap-min);
+  margin: 0;
+  border: none;
+  background: none;
+  font-size: 1rem;
+}
+
+/* 候補リスト（地点検索・最近の検索地点） */
+.btn-candidate {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+/* --- 画面ヘッダー --- */
+.screen-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.screen-header .heading {
+  margin: 0;
+  font-size: 1.1rem;
+  flex: 1;
+}
+
+/* --- ホーム --- */
+.app-title {
+  margin: 24px 0 0;
+  font-size: 2rem;
+  text-align: center;
+}
+
+.app-tagline {
+  margin: 4px 0 32px;
+  text-align: center;
+}
+
+/* --- 検索ウィザード --- */
+.wizard-progress {
+  text-align: right;
+  color: #4c5a53;
+}
+
+.wizard-question {
+  font-size: 1.4rem;
+  margin: 8px 0 16px;
+}
+
+.field-label {
+  display: block;
+  margin-top: 12px;
+  font-weight: bold;
+}
+
+.text-input {
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: 8px 12px;
+  border: 2px solid var(--color-border);
+  border-radius: 10px;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.section-title {
+  margin: 20px 0 4px;
+  font-size: 1rem;
+  color: #4c5a53;
+}
+
+.inline-error {
+  color: var(--color-danger);
+  margin: 8px 0;
+}
+
+/* --- 結果一覧 --- */
+.itinerary-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.card {
+  border: 2px solid var(--color-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 12px 0;
+}
+
+.card-suggested {
+  border-color: var(--color-primary);
+  background: var(--color-primary-tint);
+}
+
+/* 3指標は常に同じ位置・順序（docs/15 7.4節） */
+.indicators {
+  display: flex;
+  gap: 16px;
+  margin: 0 0 4px;
+  font-weight: bold;
+  /* 数字の判読性（docs/15 7.2節） */
+  font-variant-numeric: tabular-nums;
+}
+
+.times {
+  margin: 0 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.badge {
+  display: inline-block;
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-weight: bold;
+}
+
+.badge-flex {
+  background: var(--color-warning-tint);
+  color: var(--color-warning);
+}
+
+.badge-flex.deadline-soon {
+  outline: 2px solid var(--color-warning);
+}
+
+.badge-flex.deadline-passed {
+  background: var(--color-danger-tint);
+  color: var(--color-danger);
+}
+
+.badge-fixed {
+  background: #eef1ef;
+  color: #33413a;
+}
+
+/* 締切超過の打ち切り表示（docs/15 4.2節） */
+.notice-passed {
+  border: 2px solid var(--color-danger);
+  border-radius: 12px;
+  background: var(--color-danger-tint);
+  padding: 12px 16px;
+  margin: 12px 0;
+}
+
+.notice-passed p {
+  margin: 0;
+}
+
+.status-text {
+  margin: 16px 0;
+}
+
+.sort-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.sort-control select {
+  min-height: var(--tap-min);
+  font-size: 1rem;
+  font-family: inherit;
+  border: 2px solid var(--color-border);
+  border-radius: 8px;
+  padding: 4px 8px;
+}
