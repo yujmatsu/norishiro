@@ -1,0 +1,2 @@
+agency_id,agency_name,agency_url,agency_timezone,agency_lang,agency_phone
+mizuhomachi,瑞穂町,https://www.town.mizuho.tokyo.jp/,Asia/Tokyo,ja,050-2030-2630

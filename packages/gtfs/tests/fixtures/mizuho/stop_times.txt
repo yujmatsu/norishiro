@@ -1,0 +1,5 @@
+trip_id,location_group_id,stop_sequence,start_pickup_drop_off_window,end_pickup_drop_off_window,pickup_type,drop_off_type,pickup_booking_rule_id,drop_off_booking_rule_id,timepoint
+east_trip,mizuhomachi_group,1,09:00:00,17:00:00,2,1,general,,1
+east_trip,mizuhomachi_group,2,09:00:00,17:00:00,1,2,,general,1
+west_trip,mizuhomachi_group,1,09:00:00,17:00:00,2,1,general,,1
+west_trip,mizuhomachi_group,2,09:00:00,17:00:00,1,2,,general,1

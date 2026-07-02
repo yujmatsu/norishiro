@@ -1,0 +1,2 @@
+booking_rule_id,booking_type,prior_notice_duration_min,message,phone_number,info_url,booking_url
+general,1,30,ご利用の30分前までに予約が必要で、電話予約は8:30から16:30まで、オンライン予約は24時間受付,050-2030-2630,https://www.town.mizuho.tokyo.jp/,

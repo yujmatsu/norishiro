@@ -1,0 +1,2 @@
+route_id,agency_id,route_short_name,route_long_name,route_type,route_desc,route_color,route_text_color
+mizuhomachi_route,mizuhomachi,瑞穂町デマンド,チョイソコみずほまち,715,瑞穂町チョイソコみずほまちデマンドサービス,008080,FFFFFF

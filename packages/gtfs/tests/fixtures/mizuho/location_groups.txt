@@ -1,0 +1,2 @@
+location_group_id,location_group_name
+mizuhomachi_group,瑞穂町全乗降場
