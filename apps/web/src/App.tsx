@@ -1,6 +1,7 @@
 // アプリのルーティング骨格（docs/15 2.2節の画面一覧S1〜S10に対応）。
 import type { ReactElement } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { DisplayToolbar } from "./components/DisplayToolbar.js";
 import { ContactPage } from "./pages/ContactPage.js";
 import { CreditsPage } from "./pages/CreditsPage.js";
 import { DetailPage } from "./pages/DetailPage.js";
@@ -13,7 +14,9 @@ import { SearchWizardPage } from "./pages/SearchWizardPage.js";
 
 export function App(): ReactElement {
   return (
-    <Routes>
+    <>
+      <DisplayToolbar />
+      <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/search" element={<SearchWizardPage />} />
       <Route path="/result" element={<ResultsPage />} />
@@ -23,7 +26,8 @@ export function App(): ReactElement {
       <Route path="/help" element={<HelpPage />} />
       <Route path="/credits" element={<CreditsPage />} />
       <Route path="/contact" element={<ContactPage />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }
