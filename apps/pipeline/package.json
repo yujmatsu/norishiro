@@ -7,9 +7,15 @@
   "types": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "build:mizuho": "tsx src/build-mizuho-shard.ts"
   },
   "dependencies": {
-    "@norishiro/gtfs": "workspace:*", "@norishiro/router": "workspace:*", "@norishiro/types": "workspace:*"
+    "@norishiro/gtfs": "workspace:*",
+    "@norishiro/router": "workspace:*",
+    "@norishiro/types": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.22.5"
   }
 }

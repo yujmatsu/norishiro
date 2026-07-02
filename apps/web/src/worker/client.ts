@@ -1,0 +1,90 @@
+// Web WorkerへのPromiseベースRPCクライアント。UIコンポーネントはこのクラス経由で探索を呼ぶ。
+import type { IsochroneResult, Itinerary, LocationRef, PlanRequest } from "@norishiro/router";
+import type { WorkerRequest, WorkerResponse } from "./router-worker.js";
+
+export interface ShardInfo {
+  shardId: string;
+  calendarWindow: { from: string; to: string };
+}
+
+export class RouterWorkerClient {
+  private worker: Worker;
+  private nextId = 1;
+  private pending = new Map<
+    number,
+    { resolve: (value: unknown) => void; reject: (reason: Error) => void }
+  >();
+  private readyPromise: Promise<ShardInfo>;
+
+  constructor() {
+    this.worker = new Worker(new URL("./router-worker.ts", import.meta.url), {
+      type: "module",
+    });
+    this.readyPromise = new Promise<ShardInfo>((resolve, reject) => {
+      const onMessage = (event: MessageEvent<WorkerResponse>): void => {
+        const msg = event.data;
+        if (msg.type === "ready") {
+          resolve({ shardId: msg.shardId, calendarWindow: msg.calendarWindow });
+        } else if (msg.type === "init-error") {
+          reject(new Error(msg.error));
+        } else {
+          const entry = this.pending.get(msg.id);
+          if (entry) {
+            this.pending.delete(msg.id);
+            if (msg.ok) {
+              entry.resolve(msg.result);
+            } else {
+              entry.reject(new Error(msg.error));
+            }
+          }
+        }
+      };
+      this.worker.addEventListener("message", onMessage);
+    });
+  }
+
+  /** シャード読み込み完了を待つ（UIのローディング表示に使う） */
+  ready(): Promise<ShardInfo> {
+    return this.readyPromise;
+  }
+
+  private send<T>(request: WorkerRequest): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      this.pending.set(request.id, {
+        resolve: (v) => resolve(v as T),
+        reject,
+      });
+      this.worker.postMessage(request);
+    });
+  }
+
+  plan(req: PlanRequest): Promise<Itinerary[]> {
+    return this.send<Itinerary[]>({ id: this.nextId++, type: "plan", req });
+  }
+
+  isochrone(
+    origin: LocationRef,
+    departureTime: number,
+    cutoffs: number[],
+  ): Promise<IsochroneResult> {
+    return this.send<IsochroneResult>({
+      id: this.nextId++,
+      type: "isochrone",
+      origin,
+      departureTime,
+      cutoffs,
+    });
+  }
+
+  terminate(): void {
+    this.worker.terminate();
+  }
+}
+
+let shared: RouterWorkerClient | undefined;
+
+/** アプリ全体で共有する単一のWorkerクライアント（シャードの二重ロードを避ける） */
+export function getRouterClient(): RouterWorkerClient {
+  shared ??= new RouterWorkerClient();
+  return shared;
+}
