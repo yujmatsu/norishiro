@@ -1,5 +1,6 @@
 // 経路カード（docs/15 3.3節）。所要・乗換数・徒歩量の3指標を常に同じ位置・順序で表示し、
 // Flexレッグを含む経路は要予約バッジ＋締切をカード表面から見せる（docs/15 4.1節・4.2節）。
+// カードタップで経路詳細画面（S4）へ遷移する。
 import type { ReactElement } from "react";
 import type { FlexLeg, Itinerary } from "@norishiro/router";
 import { deadlineDisplay } from "../lib/booking-display.js";
@@ -14,6 +15,8 @@ export interface ItineraryCardProps {
   now: SearchNow;
   /** 締切超過時の代替候補として強調表示するか（docs/15 4.4節） */
   suggested?: boolean;
+  /** カードタップ時の詳細画面遷移（S4、docs/15 3.3節） */
+  onDetail?: () => void;
 }
 
 export function ItineraryCard({
@@ -21,14 +24,15 @@ export function ItineraryCard({
   serviceDate,
   now,
   suggested = false,
+  onDetail,
 }: ItineraryCardProps): ReactElement {
   const { summary, legs } = itinerary;
   const flexLeg = legs.find((leg): leg is FlexLeg => leg.kind === "flex");
   const deadline =
     flexLeg === undefined ? null : deadlineDisplay(flexLeg.booking.deadline, serviceDate, now);
 
-  return (
-    <li className={suggested ? "card card-suggested" : "card"}>
+  const content = (
+    <>
       <p className="indicators">
         <span>所要 {formatDurationMin(summary.durationSec)}</span>
         <span>乗換 {summary.transferCount}回</span>
@@ -46,6 +50,19 @@ export function ItineraryCard({
         </p>
       ) : (
         <p className="badge badge-fixed">🚌 固定路線のみ</p>
+      )}
+    </>
+  );
+
+  return (
+    <li className={suggested ? "card card-suggested" : "card"}>
+      {onDetail !== undefined ? (
+        <button type="button" className="card-tap" onClick={onDetail}>
+          {content}
+          <span className="detail-cue">詳細 ›</span>
+        </button>
+      ) : (
+        content
       )}
     </li>
   );

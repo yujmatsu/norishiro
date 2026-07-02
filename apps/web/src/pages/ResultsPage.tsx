@@ -137,6 +137,11 @@ export function ResultsPage(): ReactElement {
       ? state.outcome.shiftedFlex?.itinerary.legs.find((leg): leg is FlexLeg => leg.kind === "flex")
       : undefined;
 
+  // カードタップで経路詳細（S4）へ。経路データはstate渡し、検索条件は戻り用にURLへ引き継ぐ
+  const openDetail = (itinerary: Itinerary, serviceDate: number): void => {
+    void navigate(`/detail${window.location.search}`, { state: { itinerary, serviceDate } });
+  };
+
   return (
     <main className="app-main">
       <header className="screen-header">
@@ -198,6 +203,11 @@ export function ResultsPage(): ReactElement {
                   serviceDate={state.serviceDate}
                   now={nowTick}
                   suggested
+                  onDetail={() => {
+                    if (state.outcome.shiftedFlex !== undefined) {
+                      openDetail(state.outcome.shiftedFlex.itinerary, state.serviceDate);
+                    }
+                  }}
                 />
               </ul>
             </section>
@@ -227,6 +237,7 @@ export function ResultsPage(): ReactElement {
                   itinerary={itinerary}
                   serviceDate={state.serviceDate}
                   now={nowTick}
+                  onDetail={() => openDetail(itinerary, state.serviceDate)}
                 />
               ))}
             </ul>

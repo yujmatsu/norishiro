@@ -1,7 +1,8 @@
 // Web WorkerへのPromiseベースRPCクライアント。UIコンポーネントはこのクラス経由で探索を呼ぶ。
 import type { IsochroneResult, Itinerary, LocationRef, PlanRequest } from "@norishiro/router";
+import type { LatLon } from "../lib/geo-hull.js";
 import type { StopCandidate } from "../lib/stop-search.js";
-import type { WorkerRequest, WorkerResponse } from "./router-worker.js";
+import type { StopPoint, WorkerRequest, WorkerResponse } from "./router-worker.js";
 
 export interface ShardInfo {
   shardId: string;
@@ -82,9 +83,19 @@ export class RouterWorkerClient {
     return this.send<StopCandidate[]>({ id: this.nextId++, type: "searchStops", query, limit });
   }
 
-  /** stopId→表示名の解決（結果一覧・詳細の表示用） */
-  stopNames(stopIds: string[]): Promise<Record<string, string>> {
-    return this.send<Record<string, string>>({ id: this.nextId++, type: "stopNames", stopIds });
+  /** stopId→表示名・座標の解決（S4のレッグ内訳・地図描画用、docs/15 3.4節） */
+  stopPoints(stopIds: string[]): Promise<Record<string, StopPoint>> {
+    return this.send<Record<string, StopPoint>>({ id: this.nextId++, type: "stopPoints", stopIds });
+  }
+
+  /** Flexエリア（location_group）の停留所座標群。面表現のconvex hull入力（docs/15 3.4節） */
+  flexAreaStops(locationGroupId: string): Promise<LatLon[]> {
+    return this.send<LatLon[]>({ id: this.nextId++, type: "flexAreaStops", locationGroupId });
+  }
+
+  /** routeId→表示名（routeShortName優先）の解決 */
+  routeNames(routeIds: string[]): Promise<Record<string, string>> {
+    return this.send<Record<string, string>>({ id: this.nextId++, type: "routeNames", routeIds });
   }
 
   terminate(): void {
