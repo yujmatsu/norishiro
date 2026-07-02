@@ -211,6 +211,8 @@ export interface RunOptions {
   /** 目的地枝刈りの初期値（isochroneではcutoff上限、planではegress初期評価） */
   targetPruneInit: number;
   egress?: EgressTarget[];
+  /** falseでFlexレッグのスキャンを行わない（isochroneのBefore/After用）。既定true */
+  includeFlex?: boolean;
 }
 
 export interface RunResult {
@@ -251,7 +253,9 @@ export function runRaptor(shard: RouterShard, opts: RunOptions): RunResult {
     }
 
     // (b) Flexレッグのスキャン（docs/13 4章。走査起点はflex.tsの注記どおり前ラウンド到達stop）
-    scanFlexLegs(shard, sourceStops, state, k, flexCtx, roundMarked, targetPrune);
+    if (opts.includeFlex !== false) {
+      scanFlexLegs(shard, sourceStops, state, k, flexCtx, roundMarked, targetPrune);
+    }
 
     // (c) 徒歩transferの緩和
     relaxTransfers(shard, roundMarked, state, k);

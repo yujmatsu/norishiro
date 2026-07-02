@@ -5,6 +5,7 @@ export type {
   FlexBookingInfo,
   FlexLeg,
   IsochroneFeatureProperties,
+  IsochroneOptions,
   IsochroneResult,
   Itinerary,
   ItinerarySummary,

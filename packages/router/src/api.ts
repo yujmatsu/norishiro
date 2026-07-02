@@ -4,7 +4,13 @@ import { RouterInputError } from "./errors.js";
 import { haversineMeters, walkDurationSec, WALK_LIMIT_METERS_DEFAULT } from "./geo.js";
 import { buildIsochronePolygons } from "./isochrone.js";
 import { getActiveShard, gridQuery } from "./load-shard.js";
-import type { IsochroneResult, Itinerary, LocationRef, PlanRequest } from "./public-types.js";
+import type {
+  IsochroneOptions,
+  IsochroneResult,
+  Itinerary,
+  LocationRef,
+  PlanRequest,
+} from "./public-types.js";
 import { DEFAULT_MAX_TRANSFERS, runRaptor, type EgressTarget } from "./raptor.js";
 import { reconstructItineraries } from "./reconstruct.js";
 import type { AccessLegSet, RouterShard, SearchTimeContext } from "./types.js";
@@ -92,11 +98,14 @@ export function plan(req: PlanRequest): Itinerary[] {
 
 /**
  * 到達圏算出（docs/13 7章）。cutoffsで指定した秒数ごとの到達可能領域をGeoJSONで返す。
+ * optionsはdocs/13 8章への追加的拡張（docs/17 C-18）: docs/15 3.7節の到達圏モードが
+ * 「デマンド交通あり/なし」切替と日付指定を必要とするため。
  */
 export function isochrone(
   origin: LocationRef,
   departureTime: number,
   cutoffs: number[],
+  options?: IsochroneOptions,
 ): IsochroneResult {
   if (typeof departureTime !== "number" || !Number.isFinite(departureTime)) {
     throw new RouterInputError("departureTimeは必須");
@@ -105,7 +114,7 @@ export function isochrone(
     throw new RouterInputError("cutoffsは1つ以上必要");
   }
   const shard = requireActiveShard();
-  const serviceDate = shard.defaultServiceDate;
+  const serviceDate = options?.serviceDate ?? shard.defaultServiceDate;
 
   const access = resolveLocation(shard, origin, WALK_LIMIT_METERS_DEFAULT);
   if (access.reachableStops.length === 0) {
@@ -122,6 +131,7 @@ export function isochrone(
     // isochroneは到達可能性の俯瞰が目的のため、予約締切は実行可能性に反映しない
     // （締切情報のみ扱い。当日判定を発火させないserviceDate=-1を使う）
     searchTime: { serviceDate: -1, nowSec: 0 },
+    includeFlex: options?.includeFlex ?? true,
   });
 
   return buildIsochronePolygons(shard, state, departureTime, cutoffs);

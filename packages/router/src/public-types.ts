@@ -82,6 +82,17 @@ export interface Itinerary {
   summary: ItinerarySummary;
 }
 
+/**
+ * isochroneのオプション（docs/13 8章への追加的拡張、経緯はdocs/17 C-18）。
+ * docs/15 3.7節の到達圏モード（デマンド交通あり/なしのBefore/After・日付指定）が必要とする。
+ */
+export interface IsochroneOptions {
+  /** falseでFlexレッグを除いた到達圏を計算する。既定true */
+  includeFlex?: boolean;
+  /** 対象サービス日（YYYYMMDD）。省略時はシャードの既定サービス日 */
+  serviceDate?: number;
+}
+
 export interface IsochroneFeatureProperties {
   cutoffSec: number;
 }
