@@ -1,5 +1,7 @@
 # ノリシロ
 
+[![CI](https://github.com/yujmatsu/norishiro/actions/workflows/ci.yml/badge.svg)](https://github.com/yujmatsu/norishiro/actions/workflows/ci.yml)
+
 鉄道・バスの固定路線データとGTFS-Flex（デマンド交通）を統合し、「予約が必要な移動手段」を予約締切の逆算表示つきで案内する経路検索サービス。[公共交通オープンデータチャレンジ2026](https://challenge2026.odpt.org/)への応募作品です。
 
 交通空白地域の高齢者・その家族・観光客が、乗換アプリに出てこないデマンド交通を発見できるようにすることを目的としています。
