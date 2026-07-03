@@ -2,6 +2,7 @@
 
 :root {
   --color-text: #1f2723;
+  --color-text-sub: #4c5a53; /* 補助テキスト。白背景とのコントラスト比 約7:1 */
   --color-bg: #ffffff;
   --color-primary: #2e6e4e; /* 白文字とのコントラスト比 約5.9:1（WCAG AA） */
   --color-primary-tint: #e6f4ea;
@@ -11,6 +12,38 @@
   --color-danger: #b3261e;
   --color-danger-tint: #fce8e6;
   --tap-min: 44px;
+}
+
+/* 文字サイズ3段階（docs/15 5.1節）。remベースのため全体が追従する */
+html[data-font-scale="large"] {
+  font-size: 20px;
+}
+
+html[data-font-scale="xlarge"] {
+  font-size: 22px;
+}
+
+/* 高コントラストモード（docs/15 5.1節）。色数を絞り、輪郭を強める */
+html[data-contrast="high"] {
+  --color-text: #000000;
+  --color-text-sub: #000000;
+  --color-primary: #00512d;
+  --color-primary-tint: #ffffff;
+  --color-border: #000000;
+  --color-warning: #6b3400;
+  --color-warning-tint: #ffffff;
+  --color-danger: #7a1410;
+  --color-danger-tint: #ffffff;
+}
+
+/* 高コントラスト時はバッジ等の淡色背景に頼らず輪郭で区別する（色だけに依存しない） */
+html[data-contrast="high"] .badge {
+  outline: 2px solid currentColor;
+}
+
+html[data-contrast="high"] .badge-fixed {
+  background: #ffffff;
+  color: #000000;
 }
 
 * {
@@ -126,7 +159,7 @@ h1 {
 /* --- 検索ウィザード --- */
 .wizard-progress {
   text-align: right;
-  color: #4c5a53;
+  color: var(--color-text-sub);
 }
 
 .wizard-question {
@@ -153,7 +186,7 @@ h1 {
 .section-title {
   margin: 20px 0 4px;
   font-size: 1rem;
-  color: #4c5a53;
+  color: var(--color-text-sub);
 }
 
 .inline-error {
@@ -427,7 +460,7 @@ h1 {
 
 .history-when {
   margin: 0 0 8px;
-  color: #4c5a53;
+  color: var(--color-text-sub);
 }
 
 .history-actions {
@@ -465,5 +498,28 @@ h1 {
   border-color: var(--color-primary);
   background: var(--color-primary);
   color: #ffffff;
+  font-weight: bold;
+}
+
+/* --- 表示設定ツールバー（全画面共通、docs/15 5.1節） --- */
+.display-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 8px 16px 0;
+}
+
+.btn-toolbar {
+  width: auto;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.btn-toolbar[aria-pressed="true"] {
+  border-color: var(--color-text);
+  background: var(--color-text);
+  color: var(--color-bg);
   font-weight: bold;
 }
