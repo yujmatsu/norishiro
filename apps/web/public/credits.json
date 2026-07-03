@@ -1,0 +1,15 @@
+{
+  "generatedAt": "2026-07-03T00:00:00+09:00",
+  "entries": [
+    {
+      "feedId": "mizuho-flex",
+      "providerName": "瑞穂町",
+      "creditText": "瑞穂町「チョイソコみずほまち」GTFS-Flexデータ（CC BY 4.0）を加工して作成",
+      "licenseId": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/deed.ja",
+      "sourceUrl": "https://gtfs-data.jp/search?target_feed=mizuhotown*DemandResponsiveTransport",
+      "challengeLimited": false,
+      "prefecture": "13"
+    }
+  ]
+}

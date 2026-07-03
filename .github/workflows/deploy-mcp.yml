@@ -1,0 +1,62 @@
+# MCPサーバー（apps/mcp）のCloud Runデプロイ（docs/14 7.2節のCDパイプライン）。
+#
+# 現状は手動トリガー（workflow_dispatch）のみ。GCP初期設定（docs/17 U-04・U-10:
+# Artifact Registryリポジトリ作成・Workload Identity連携・Secrets登録）の完了後、
+# mainへのpush連動（paths: apps/mcp/** / packages/**）を追加して有効化する。
+#
+# 必要なSecrets/Variables:
+#   secrets.GCP_WORKLOAD_IDENTITY_PROVIDER … WIFプロバイダのリソース名
+#   secrets.GCP_SERVICE_ACCOUNT            … デプロイ用サービスアカウント
+#   vars.GCP_PROJECT_ID                    … GCPプロジェクトID
+#   vars.NORISHIRO_ASSET_BASE_URL          … シャード配信元（Firebase HostingのURL）
+
+name: deploy-mcp
+
+on:
+  workflow_dispatch:
+
+env:
+  REGION: asia-northeast1
+  SERVICE: norishiro-mcp
+  IMAGE: asia-northeast1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/norishiro/mcp:${{ github.sha }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push image
+        run: |
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+          docker build -f apps/mcp/Dockerfile -t "${IMAGE}" .
+          docker push "${IMAGE}"
+
+      # 絶対制約: max-instances未設定でのデプロイ禁止（CLAUDE.md、docs/14 7.1節）。
+      # 数値はv1初期値（メモリ512Mi・min 0・max 3・concurrency 80・timeout 60s）。
+      # 実測後の見直しはdocs/17 T-11で管理する。
+      - uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE }}
+          region: ${{ env.REGION }}
+          image: ${{ env.IMAGE }}
+          flags: >-
+            --allow-unauthenticated
+            --memory=512Mi
+            --cpu=1
+            --min-instances=0
+            --max-instances=3
+            --concurrency=80
+            --timeout=60
+          env_vars: |
+            NORISHIRO_ASSET_BASE_URL=${{ vars.NORISHIRO_ASSET_BASE_URL }}
