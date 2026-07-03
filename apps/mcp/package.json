@@ -7,9 +7,17 @@
   "types": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist/index.cjs",
+    "start": "node dist/index.cjs"
   },
   "dependencies": {
-    "@norishiro/router": "workspace:*", "@norishiro/types": "workspace:*"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@norishiro/router": "workspace:*",
+    "@norishiro/types": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
   }
 }
