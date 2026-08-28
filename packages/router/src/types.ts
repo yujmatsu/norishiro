@@ -79,6 +79,10 @@ export interface RouterShard {
   tripStopTimesOffset: Uint32Array;
   stopTimesArrival: Int32Array;
   stopTimesDeparture: Int32Array;
+  /** stop_timesのpickup_type（docs/10 2.5.1節）。添字はstopTimesArrivalと同じ */
+  stopTimesPickupType: Uint8Array;
+  /** stop_timesのdrop_off_type（docs/10 2.5.1節）。添字はstopTimesArrivalと同じ */
+  stopTimesDropOffType: Uint8Array;
   tripServiceDates: number[][];
 
   stopRoutesStart: Uint32Array;
@@ -121,6 +125,10 @@ export type LegRecord =
       alightSeqIdx: number;
       departSec: number;
       arriveSec: number;
+      /** 乗車地のpickup_type（docs/10 2.5.1節） */
+      boardPickupType: number;
+      /** 降車地のdrop_off_type（docs/10 2.5.1節） */
+      alightDropOffType: number;
       round: number;
     }
   | {

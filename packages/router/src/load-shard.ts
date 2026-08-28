@@ -170,7 +170,7 @@ export function loadShard(shardJson: Shard): RouterShardHandle {
   const flexTripIdxSet = new Set(shardJson.flex?.flexTrips.tripIdx ?? []);
   const rowsByTrip = new Map<
     number,
-    { seq: number; stopIdx: number; arr: number; dep: number }[]
+    { seq: number; stopIdx: number; arr: number; dep: number; pu: number; dof: number }[]
   >();
   const st = shardJson.stopTimes;
   for (let i = 0; i < st.tripIdx.length; i++) {
@@ -184,14 +184,21 @@ export function loadShard(shardJson: Shard): RouterShardHandle {
       rows = [];
       rowsByTrip.set(ti, rows);
     }
-    rows.push({ seq: st.stopSequence[i]!, stopIdx: st.stopIdx[i]!, arr, dep });
+    rows.push({
+      seq: st.stopSequence[i]!,
+      stopIdx: st.stopIdx[i]!,
+      arr,
+      dep,
+      pu: st.pickupType[i] ?? 0,
+      dof: st.dropOffType[i] ?? 0,
+    });
   }
 
   // 停留所列パターンで内部routeに分割する（docs/13 2.2節「1 RouteIdx = 1停留所列パターン」）
   interface RouteAccum {
     pattern: number[];
     routeId: string;
-    trips: { shardTripIdx: number; times: { arr: number; dep: number }[] }[];
+    trips: { shardTripIdx: number; times: { arr: number; dep: number; pu: number; dof: number }[] }[];
   }
   const routeByKey = new Map<string, RouteAccum>();
   for (const [shardTripIdx, rows] of rowsByTrip) {
@@ -205,7 +212,10 @@ export function loadShard(shardJson: Shard): RouterShardHandle {
       accum = { pattern, routeId: shardJson.routes.routeId[shardRouteIdx]!, trips: [] };
       routeByKey.set(key, accum);
     }
-    accum.trips.push({ shardTripIdx, times: rows.map((r) => ({ arr: r.arr, dep: r.dep })) });
+    accum.trips.push({
+      shardTripIdx,
+      times: rows.map((r) => ({ arr: r.arr, dep: r.dep, pu: r.pu, dof: r.dof })),
+    });
   }
 
   const routes = [...routeByKey.values()];
@@ -231,6 +241,8 @@ export function loadShard(shardJson: Shard): RouterShardHandle {
   const tripStopTimesOffset = new Uint32Array(tripCount);
   const stopTimesArrival = new Int32Array(stopTimesTotal);
   const stopTimesDeparture = new Int32Array(stopTimesTotal);
+  const stopTimesPickupType = new Uint8Array(stopTimesTotal);
+  const stopTimesDropOffType = new Uint8Array(stopTimesTotal);
   const tripServiceDates: number[][] = new Array<number[]>(tripCount);
 
   const stopRouteLists: number[][] = Array.from({ length: stopCount }, () => []);
@@ -251,6 +263,8 @@ export function loadShard(shardJson: Shard): RouterShardHandle {
       for (const t of trip.times) {
         stopTimesArrival[stCursor] = t.arr;
         stopTimesDeparture[stCursor] = t.dep;
+        stopTimesPickupType[stCursor] = t.pu;
+        stopTimesDropOffType[stCursor] = t.dof;
         stCursor++;
       }
       tripCursor++;
@@ -305,6 +319,8 @@ export function loadShard(shardJson: Shard): RouterShardHandle {
     tripStopTimesOffset,
     stopTimesArrival,
     stopTimesDeparture,
+    stopTimesPickupType,
+    stopTimesDropOffType,
     tripServiceDates,
     stopRoutesStart: stopRoutesCsr.start,
     stopRoutes: stopRoutesCsr.items,

@@ -8,7 +8,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "build:mizuho": "tsx src/build-mizuho-shard.ts"
+    "build:mizuho": "tsx src/build-mizuho-shard.ts",
+    "inspect:flex": "tsx src/inspect-flex-feeds.ts",
+    "verify:reservation": "tsx src/verify-reservation-legs.ts"
   },
   "dependencies": {
     "@norishiro/gtfs": "workspace:*",
