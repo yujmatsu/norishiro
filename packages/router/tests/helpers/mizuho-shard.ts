@@ -112,7 +112,7 @@ export function buildMizuhoShard(): Shard {
     meta: {
       shardId: "13-mizuho",
       shardKind: "prefecture",
-      schemaVersion: 1,
+      schemaVersion: 2,
       generatedAt: "2026-07-02T00:00:00Z",
       calendarWindow: { ...MIZUHO_WINDOW },
       sourceFeedIds: ["mizuho-flex"],
@@ -150,6 +150,20 @@ export function buildMizuhoShard(): Shard {
       pickupType: stopTimesCsv.map((st) => Number(st.pickup_type)),
       dropOffType: stopTimesCsv.map((st) => Number(st.drop_off_type)),
     },
+    // 予約ルールはトップレベルが正本（docs/12 4.4節、schemaVersion 2）
+    bookingRules: {
+      bookingRuleId: bookingRulesCsv.map((r) => r.booking_rule_id!),
+      bookingType: bookingRulesCsv.map((r) => Number(r.booking_type)),
+      priorNoticeDurationMin: bookingRulesCsv.map((r) =>
+        r.prior_notice_duration_min ? Number(r.prior_notice_duration_min) : null,
+      ),
+      priorNoticeDurationMax: bookingRulesCsv.map(() => null),
+      priorNoticeLastDay: bookingRulesCsv.map(() => null),
+      priorNoticeLastTime: bookingRulesCsv.map(() => null),
+      message: bookingRulesCsv.map((r) => r.message ?? null),
+      phoneNumber: bookingRulesCsv.map((r) => r.phone_number ?? null),
+      infoUrl: bookingRulesCsv.map((r) => r.info_url ?? null),
+    },
     flex: {
       locationGroups: {
         locationGroupId: groups.map((g) => g.location_group_id!),
@@ -161,19 +175,6 @@ export function buildMizuhoShard(): Shard {
         ),
       },
       flexTrips,
-      bookingRules: {
-        bookingRuleId: bookingRulesCsv.map((r) => r.booking_rule_id!),
-        bookingType: bookingRulesCsv.map((r) => Number(r.booking_type)),
-        priorNoticeDurationMin: bookingRulesCsv.map((r) =>
-          r.prior_notice_duration_min ? Number(r.prior_notice_duration_min) : null,
-        ),
-        priorNoticeDurationMax: bookingRulesCsv.map(() => null),
-        priorNoticeLastDay: bookingRulesCsv.map(() => null),
-        priorNoticeLastTime: bookingRulesCsv.map(() => null),
-        message: bookingRulesCsv.map((r) => r.message ?? null),
-        phoneNumber: bookingRulesCsv.map((r) => r.phone_number ?? null),
-        infoUrl: bookingRulesCsv.map((r) => r.info_url ?? null),
-      },
     },
     transfers: { fromStopIdx: [], toStopIdx: [], distanceM: [], walkSec: [] },
   };

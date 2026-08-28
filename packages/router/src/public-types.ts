@@ -40,6 +40,23 @@ export interface WalkLeg {
  */
 export type BoardingRequirement = "phone_agency" | "coordinate_with_driver";
 
+/**
+ * 予約の締切・連絡先（`booking_rules.txt`由来）。
+ * Flexレッグと予約制の定時便（transitレッグ）が共通で使う。
+ */
+export interface BookingInfo {
+  phoneNumber?: string;
+  /** 案内文（booking_rules.message、そのまま提示。言い換え・要約をしない） */
+  message?: string;
+  /** 予約締切時刻（サービス日の秒）。未定義=締切不明 */
+  deadline?: number;
+  infoUrl?: string;
+  bookingUrl?: string;
+}
+
+/** @deprecated `BookingInfo`の旧名。Flex専用ではなくなったため改名した */
+export type FlexBookingInfo = BookingInfo;
+
 export interface TransitLeg {
   kind: "transit";
   routeId: string;
@@ -54,16 +71,14 @@ export interface TransitLeg {
   boardingRequirement?: BoardingRequirement;
   /** 降車に手続きが必要な場合のみ設定（drop_off_type=2/3）。通常の降車では未定義 */
   alightingRequirement?: BoardingRequirement;
-}
-
-export interface FlexBookingInfo {
-  phoneNumber?: string;
-  /** 案内文（booking_rules.message、そのまま提示。言い換え・要約をしない） */
-  message?: string;
-  /** 予約締切時刻（サービス日の秒）。未定義=締切不明 */
-  deadline?: number;
-  infoUrl?: string;
-  bookingUrl?: string;
+  /**
+   * 予約の締切・連絡先。`stop_times`の乗降行が`booking_rules.txt`を参照している場合のみ設定する。
+   *
+   * `boardingRequirement`が立っているのに本フィールドが未定義な場合は、フィードが
+   * 「予約が必要」とだけ表明し締切・連絡先を提供していないことを意味する（実データで20フィードが該当、
+   * docs/20 §2.3）。この状態を「予約不要」と誤って表示してはならない。
+   */
+  booking?: BookingInfo;
 }
 
 export interface FlexLeg {
@@ -76,7 +91,7 @@ export interface FlexLeg {
   departureTime: number;
   /** 降車推定時刻（Haversine推定。あくまで目安） */
   arrivalTime: number;
-  booking: FlexBookingInfo;
+  booking: BookingInfo;
 }
 
 export type Leg = WalkLeg | TransitLeg | FlexLeg;

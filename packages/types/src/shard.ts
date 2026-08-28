@@ -6,8 +6,11 @@ export interface ShardMeta {
   /** 例: "13"(東京都) / "backbone" */
   shardId: string;
   shardKind: "prefecture" | "backbone";
-  /** 本形式のスキーマバージョン。routerは未知バージョンのロードを拒否する */
-  schemaVersion: 1;
+  /**
+   * 本形式のスキーマバージョン。routerは未知バージョンのロードを拒否する。
+   * v2で`bookingRules`をトップレベルへ移動した（予約制の定時便を扱うため、docs/17 C-24）。
+   */
+  schemaVersion: 2;
   /** ISO 8601。ビルド実行日時 */
   generatedAt: string;
   /** カレンダー展開範囲（YYYY-MM-DD） */
@@ -55,6 +58,13 @@ export interface CompressedStopTimes {
   departureSec: (number | null)[];
   pickupType: number[];
   dropOffType: number[];
+  /**
+   * 乗車側の予約ルール参照（`CompressedBookingRules`配列内インデックス）。参照なしはnull。
+   * 予約が必要な便を1件も含まないシャードでは列自体を省略できる（省略時は全行参照なし扱い）。
+   */
+  pickupBookingRuleIdx?: (number | null)[];
+  /** 降車側の予約ルール参照。仕様は`pickupBookingRuleIdx`と同じ */
+  dropOffBookingRuleIdx?: (number | null)[];
 }
 
 export interface CompressedLocationGroups {
@@ -91,10 +101,13 @@ export interface CompressedBookingRules {
   infoUrl: (string | null)[];
 }
 
+/**
+ * Flex（エリア型デマンド交通）固有のデータ。予約ルールは`Shard.bookingRules`が持つ
+ * （停留所ベースの予約制定時便も同じテーブルを参照するため、v2でここから外した）。
+ */
 export interface FlexData {
   locationGroups: CompressedLocationGroups;
   flexTrips: CompressedFlexTrips;
-  bookingRules: CompressedBookingRules;
 }
 
 export interface CompressedTransfers {
@@ -112,6 +125,12 @@ export interface Shard {
   routes: CompressedRoutes;
   trips: CompressedTrips;
   stopTimes: CompressedStopTimes;
+  /**
+   * 予約ルールの正本。Flexレッグ（`FlexData.flexTrips`）と
+   * 予約制の定時便（`CompressedStopTimes.pickupBookingRuleIdx`）の両方がここを参照する。
+   * 予約ルールを持つフィードが1つも無ければnull。
+   */
+  bookingRules: CompressedBookingRules | null;
   /** 鉄道バックボーンでは常にnull */
   flex: FlexData | null;
   transfers: CompressedTransfers;

@@ -93,6 +93,8 @@ export function plan(req: PlanRequest): Itinerary[] {
     req.origin,
     req.destination,
     egress,
+    searchTime,
+    serviceDate,
   );
 }
 

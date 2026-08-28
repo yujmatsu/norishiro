@@ -2,7 +2,10 @@
 // packages/routerはfetch/JSON.parseを行わない（環境非依存、docs/13 9.4節）。
 import type { Shard } from "@norishiro/types";
 import { RouterInputError } from "./errors.js";
-import type { FlexGroupTable, GridIndex, RouterShard } from "./types.js";
+import type { BookingRuleTable, FlexGroupTable, GridIndex, RouterShard } from "./types.js";
+
+/** 本実装が読み込めるシャード契約のバージョン（docs/12 4.6節） */
+const SUPPORTED_SCHEMA_VERSION = 2;
 
 /** 公開契約上は不透明ハンドル（docs/13 8章） */
 export type RouterShardHandle = unknown;
@@ -85,6 +88,27 @@ function buildCsr(
   return { start, items };
 }
 
+/** CompressedBookingRules（docs/12 4.4節）→ ランタイム表現。未設定値は-1に正規化する */
+function buildBookingRuleTable(shard: Shard): BookingRuleTable | null {
+  const rules = shard.bookingRules;
+  if (rules === null) return null;
+  return {
+    bookingRuleIds: rules.bookingRuleId,
+    bookingType: Uint8Array.from(rules.bookingType),
+    priorNoticeDurationMin: Int32Array.from(rules.priorNoticeDurationMin.map((v) => v ?? -1)),
+    priorNoticeDurationMax: Int32Array.from(rules.priorNoticeDurationMax.map((v) => v ?? -1)),
+    priorNoticeLastDayOffset: Int32Array.from(rules.priorNoticeLastDay.map((v) => v ?? -1)),
+    priorNoticeLastTimeSec: Int32Array.from(
+      rules.priorNoticeLastTime.map((v) => (v === null ? -1 : parseTimeSec(v))),
+    ),
+    messages: rules.message.map((v) => v ?? undefined),
+    phoneNumbers: rules.phoneNumber.map((v) => v ?? undefined),
+    infoUrls: rules.infoUrl.map((v) => v ?? undefined),
+    // docs/12 4.4節のCompressedBookingRulesにbooking_url列は無いため常にundefined
+    bookingUrls: rules.bookingRuleId.map(() => undefined),
+  };
+}
+
 function buildFlexTable(shard: Shard, stopCount: number): FlexGroupTable | null {
   const flex = shard.flex;
   if (flex === null) return null;
@@ -103,7 +127,6 @@ function buildFlexTable(shard: Shard, stopCount: number): FlexGroupTable | null 
   flex.flexTrips.locationGroupIdx.forEach((g, ft) => groupFlexTripLists[g]!.push(ft));
   const groupFlexTripsCsr = buildCsr(groupCount, groupFlexTripLists);
 
-  const rules = flex.bookingRules;
   return {
     flexGroupIds: flex.locationGroups.locationGroupId,
     groupStopsStart: groupStopsCsr.start,
@@ -125,21 +148,6 @@ function buildFlexTable(shard: Shard, stopCount: number): FlexGroupTable | null 
     dropoffBookingRuleIdx: Int32Array.from(
       flex.flexTrips.dropOffBookingRuleIdx.map((v) => v ?? -1),
     ),
-    bookingRules: {
-      bookingRuleIds: rules.bookingRuleId,
-      bookingType: Uint8Array.from(rules.bookingType),
-      priorNoticeDurationMin: Int32Array.from(rules.priorNoticeDurationMin.map((v) => v ?? -1)),
-      priorNoticeDurationMax: Int32Array.from(rules.priorNoticeDurationMax.map((v) => v ?? -1)),
-      priorNoticeLastDayOffset: Int32Array.from(rules.priorNoticeLastDay.map((v) => v ?? -1)),
-      priorNoticeLastTimeSec: Int32Array.from(
-        rules.priorNoticeLastTime.map((v) => (v === null ? -1 : parseTimeSec(v))),
-      ),
-      messages: rules.message.map((v) => v ?? undefined),
-      phoneNumbers: rules.phoneNumber.map((v) => v ?? undefined),
-      infoUrls: rules.infoUrl.map((v) => v ?? undefined),
-      // docs/12 4.4節のCompressedBookingRulesにbooking_url列は無いため常にundefined
-      bookingUrls: rules.bookingRuleId.map(() => undefined),
-    },
     // 確定済み設計判断4の既定値（docs/13 2.6節）
     durationEstimatorParams: {
       detourFactor: 1.4,
@@ -156,9 +164,10 @@ function buildFlexTable(shard: Shard, stopCount: number): FlexGroupTable | null 
  * （受け渡し方式はdocs/13 11.2節U-3の暫定実装。apps実装時に再検討する）。
  */
 export function loadShard(shardJson: Shard): RouterShardHandle {
-  if (shardJson.meta.schemaVersion !== 1) {
+  if (shardJson.meta.schemaVersion !== SUPPORTED_SCHEMA_VERSION) {
     throw new RouterInputError(
-      `未対応のシャードschemaVersion: ${String(shardJson.meta.schemaVersion)}`,
+      `未対応のシャードschemaVersion: ${String(shardJson.meta.schemaVersion)}` +
+        `（本実装が対応するのは${String(SUPPORTED_SCHEMA_VERSION)}）`,
     );
   }
 
@@ -168,10 +177,19 @@ export function loadShard(shardJson: Shard): RouterShardHandle {
 
   // --- 固定路線: tripごとにstop_times行を集める（Flex行 stopIdx=-1 は除外） ---
   const flexTripIdxSet = new Set(shardJson.flex?.flexTrips.tripIdx ?? []);
-  const rowsByTrip = new Map<
-    number,
-    { seq: number; stopIdx: number; arr: number; dep: number; pu: number; dof: number }[]
-  >();
+  interface StopTimeRow {
+    seq: number;
+    stopIdx: number;
+    arr: number;
+    dep: number;
+    pu: number;
+    dof: number;
+    /** 乗車側の予約ルール添字（未設定は-1） */
+    pbr: number;
+    /** 降車側の予約ルール添字（未設定は-1） */
+    dbr: number;
+  }
+  const rowsByTrip = new Map<number, StopTimeRow[]>();
   const st = shardJson.stopTimes;
   for (let i = 0; i < st.tripIdx.length; i++) {
     if (st.stopIdx[i]! < 0) continue;
@@ -191,14 +209,18 @@ export function loadShard(shardJson: Shard): RouterShardHandle {
       dep,
       pu: st.pickupType[i] ?? 0,
       dof: st.dropOffType[i] ?? 0,
+      // 予約ルール参照列は任意（予約便を含まないシャードでは省略される、docs/12 4.3節）
+      pbr: st.pickupBookingRuleIdx?.[i] ?? -1,
+      dbr: st.dropOffBookingRuleIdx?.[i] ?? -1,
     });
   }
 
   // 停留所列パターンで内部routeに分割する（docs/13 2.2節「1 RouteIdx = 1停留所列パターン」）
+  type RouteTripTimes = Pick<StopTimeRow, "arr" | "dep" | "pu" | "dof" | "pbr" | "dbr">;
   interface RouteAccum {
     pattern: number[];
     routeId: string;
-    trips: { shardTripIdx: number; times: { arr: number; dep: number; pu: number; dof: number }[] }[];
+    trips: { shardTripIdx: number; times: RouteTripTimes[] }[];
   }
   const routeByKey = new Map<string, RouteAccum>();
   for (const [shardTripIdx, rows] of rowsByTrip) {
@@ -214,7 +236,14 @@ export function loadShard(shardJson: Shard): RouterShardHandle {
     }
     accum.trips.push({
       shardTripIdx,
-      times: rows.map((r) => ({ arr: r.arr, dep: r.dep, pu: r.pu, dof: r.dof })),
+      times: rows.map((r) => ({
+        arr: r.arr,
+        dep: r.dep,
+        pu: r.pu,
+        dof: r.dof,
+        pbr: r.pbr,
+        dbr: r.dbr,
+      })),
     });
   }
 
@@ -243,6 +272,8 @@ export function loadShard(shardJson: Shard): RouterShardHandle {
   const stopTimesDeparture = new Int32Array(stopTimesTotal);
   const stopTimesPickupType = new Uint8Array(stopTimesTotal);
   const stopTimesDropOffType = new Uint8Array(stopTimesTotal);
+  const stopTimesPickupBookingRuleIdx = new Int32Array(stopTimesTotal).fill(-1);
+  const stopTimesDropOffBookingRuleIdx = new Int32Array(stopTimesTotal).fill(-1);
   const tripServiceDates: number[][] = new Array<number[]>(tripCount);
 
   const stopRouteLists: number[][] = Array.from({ length: stopCount }, () => []);
@@ -265,6 +296,8 @@ export function loadShard(shardJson: Shard): RouterShardHandle {
         stopTimesDeparture[stCursor] = t.dep;
         stopTimesPickupType[stCursor] = t.pu;
         stopTimesDropOffType[stCursor] = t.dof;
+        stopTimesPickupBookingRuleIdx[stCursor] = t.pbr;
+        stopTimesDropOffBookingRuleIdx[stCursor] = t.dbr;
         stCursor++;
       }
       tripCursor++;
@@ -321,6 +354,8 @@ export function loadShard(shardJson: Shard): RouterShardHandle {
     stopTimesDeparture,
     stopTimesPickupType,
     stopTimesDropOffType,
+    stopTimesPickupBookingRuleIdx,
+    stopTimesDropOffBookingRuleIdx,
     tripServiceDates,
     stopRoutesStart: stopRoutesCsr.start,
     stopRoutes: stopRoutesCsr.items,
@@ -331,6 +366,7 @@ export function loadShard(shardJson: Shard): RouterShardHandle {
     defaultServiceDate: yyyymmdd(shardJson.meta.calendarWindow.from),
     activeTripBitsCache: new Map(),
     activeFlexBitsCache: new Map(),
+    bookingRules: buildBookingRuleTable(shardJson),
     flex: buildFlexTable(shardJson, stopCount),
     grid: buildGrid(stopLat, stopLon),
   };

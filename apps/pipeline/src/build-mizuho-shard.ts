@@ -12,6 +12,7 @@ import type {
   ParsedFlexFeed,
   Shard,
 } from "@norishiro/types";
+import { compressBookingRules } from "./shard-booking-rules.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.join(here, "..", "..", "..");
@@ -20,6 +21,21 @@ const outPath = path.join(repoRoot, "apps", "web", "public", "shards", "13-mizuh
 
 const FEED_ID = "mizuho-flex";
 const CALENDAR_WINDOW_DAYS = 35; // docs/12 3.4節「向こう35日分」
+
+/**
+ * コミット対象成果物のカレンダー窓の開始日。
+ * apps/mcp・apps/web のテストが 2026-07-07（火・east_trip運行日）を前提にしているため固定する。
+ */
+const PINNED_WINDOW_FROM = "2026-07-02";
+
+function validateIsoDate(value: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new Error(
+      `NORISHIRO_SHARD_WINDOW_FROM は YYYY-MM-DD か "today" を指定する（受け取った値: ${value}）`,
+    );
+  }
+  return value;
+}
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -73,8 +89,7 @@ function buildShard(feed: ParsedFlexFeed, windowFrom: Date): Shard {
   const routeIdxOf = new Map(n.routes.map((r, i) => [r.routeId, i]));
   const tripIdxOf = new Map(n.trips.map((t, i) => [t.tripId, i]));
   const groupIdxOf = new Map(n.locationGroups.map((g, i) => [g.locationGroupId, i]));
-  const ruleIds = [...n.bookingRules.keys()];
-  const ruleIdxOf = new Map(ruleIds.map((id, i) => [id, i]));
+  const { bookingRules, ruleIdxOf } = compressBookingRules(n.bookingRules);
   const calendarOf = new Map(n.calendars.map((c) => [c.serviceId, c]));
 
   const windowTo = new Date(windowFrom);
@@ -120,8 +135,10 @@ function buildShard(feed: ParsedFlexFeed, windowFrom: Date): Shard {
     meta: {
       shardId: "13-mizuho",
       shardKind: "prefecture",
-      schemaVersion: 1,
-      generatedAt: new Date().toISOString(),
+      schemaVersion: 2,
+      // ウィンドウ開始日の0時とする。実行時刻を入れると同一入力でも毎回差分が出て、
+      // コミット対象成果物のレビューがノイズで埋まるため（日単位の粒度で足りる）
+      generatedAt: `${isoDate(windowFrom)}T00:00:00Z`,
       calendarWindow: { from: isoDate(windowFrom), to: isoDate(windowTo) },
       sourceFeedIds: [FEED_ID],
       feedStatus: { [FEED_ID]: feed.warnings.length > 0 ? "ok_with_warnings" : "ok" },
@@ -166,7 +183,20 @@ function buildShard(feed: ParsedFlexFeed, windowFrom: Date): Shard {
       departureSec: n.stopTimes.map((st) => st.departureTime ?? null),
       pickupType: n.stopTimes.map((st) => st.pickupType),
       dropOffType: n.stopTimes.map((st) => st.dropOffType),
+      // 瑞穂町は全行がlocation_group参照でFlex経路に載るため、定時便側の予約ルール参照は空になる。
+      // 列自体は契約に含めておき、停留所型フィード（docs/17 C-24）と同じ形にする
+      pickupBookingRuleIdx: n.stopTimes.map((st) =>
+        st.locationRef.kind === "stop" && st.pickupBookingRuleId !== undefined
+          ? (ruleIdxOf.get(st.pickupBookingRuleId) ?? null)
+          : null,
+      ),
+      dropOffBookingRuleIdx: n.stopTimes.map((st) =>
+        st.locationRef.kind === "stop" && st.dropOffBookingRuleId !== undefined
+          ? (ruleIdxOf.get(st.dropOffBookingRuleId) ?? null)
+          : null,
+      ),
     },
+    bookingRules,
     flex: {
       locationGroups: {
         locationGroupId: n.locationGroups.map((g) => g.locationGroupId),
@@ -178,21 +208,6 @@ function buildShard(feed: ParsedFlexFeed, windowFrom: Date): Shard {
         ),
       },
       flexTrips,
-      bookingRules: {
-        bookingRuleId: ruleIds,
-        bookingType: ruleIds.map((id) => n.bookingRules.get(id)!.bookingType),
-        priorNoticeDurationMin: ruleIds.map(
-          (id) => n.bookingRules.get(id)!.priorNoticeDurationMin ?? null,
-        ),
-        priorNoticeDurationMax: ruleIds.map(
-          (id) => n.bookingRules.get(id)!.priorNoticeDurationMax ?? null,
-        ),
-        priorNoticeLastDay: ruleIds.map((id) => n.bookingRules.get(id)!.priorNoticeLastDay ?? null),
-        priorNoticeLastTime: ruleIds.map(() => null),
-        message: ruleIds.map((id) => n.bookingRules.get(id)!.message ?? null),
-        phoneNumber: ruleIds.map((id) => n.bookingRules.get(id)!.phoneNumber ?? null),
-        infoUrl: ruleIds.map((id) => n.bookingRules.get(id)!.infoUrl ?? null),
-      },
     },
     transfers: { fromStopIdx: [], toStopIdx: [], distanceM: [], walkSec: [] },
   };
@@ -211,8 +226,14 @@ function main(): void {
     console.warn(`パース警告 ${feed.warnings.length}件:`, feed.warnings);
   }
 
-  // 2. シャード構築（ウィンドウ開始は生成日のUTC日付）
-  const windowFrom = new Date(`${isoDate(new Date())}T00:00:00Z`);
+  // 2. シャード構築。ウィンドウ開始は既定で生成日のUTC日付だが、コミット対象の成果物は
+  //    PINNED_WINDOW_FROM に固定する。実行日で窓がずれると 2026-07-07 を前提とする
+  //    apps/mcp・apps/web のテストが落ちるため（成果物の再現性を保つ）。
+  //    別日の窓で生成したい場合は NORISHIRO_SHARD_WINDOW_FROM=YYYY-MM-DD か "today" を渡す。
+  const windowFromEnv = process.env.NORISHIRO_SHARD_WINDOW_FROM ?? PINNED_WINDOW_FROM;
+  const windowFromIso =
+    windowFromEnv === "today" ? isoDate(new Date()) : validateIsoDate(windowFromEnv);
+  const windowFrom = new Date(`${windowFromIso}T00:00:00Z`);
   const shard = buildShard(feed, windowFrom);
 
   // 3. 書き出し

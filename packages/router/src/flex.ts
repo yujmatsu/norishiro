@@ -71,13 +71,13 @@ function formatTime(sec: number): string {
 
 /** 予約制約の評価（docs/13 4.4節）。「当日でない未来日の探索では締切情報のみ付与」 */
 export function evaluateBooking(
-  rules: BookingRuleTable,
+  rules: BookingRuleTable | null,
   ruleIdx: number,
   boardingTimeSec: number,
   searchTime: SearchTimeContext,
   serviceDate: number,
 ): BookingResult {
-  if (ruleIdx < 0) return { feasible: true }; // 予約ルールなし
+  if (rules === null || ruleIdx < 0) return { feasible: true }; // 予約ルールなし
 
   const type = rules.bookingType[ruleIdx]!;
 
@@ -182,7 +182,7 @@ export function scanFlexLegs(
 
         // 予約制約判定（乗車側ルール）。乗車時刻はグループ内の全ペアで共通のため先に評価する
         const booking = evaluateBooking(
-          flex.bookingRules,
+          shard.bookingRules,
           flex.pickupBookingRuleIdx[flexTripIdx]!,
           tArrival,
           ctx.searchTime,

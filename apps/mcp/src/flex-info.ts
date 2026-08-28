@@ -53,8 +53,9 @@ function flexTripRefs(shard: Shard): FlexTripRef[] {
 }
 
 function priorNoticeRuleOf(shard: Shard, ruleIdx: number | null): PriorNoticeRule {
-  const rules = shard.flex?.bookingRules;
-  if (rules === undefined || ruleIdx === null) return { kind: "unknown" };
+  // 予約ルールはシャードのトップレベルが正本（docs/12 4.4節、schemaVersion 2）
+  const rules = shard.bookingRules;
+  if (rules === null || ruleIdx === null) return { kind: "unknown" };
   const type = rules.bookingType[ruleIdx];
   if (type === 0) return { kind: "real_time" };
   if (type === 1) {
@@ -141,12 +142,13 @@ export function getBookingRules(shard: Shard, serviceId: string): BookingRulesDe
   }
   const ruleIdx = flex.flexTrips.pickupBookingRuleIdx[ref.flexIdx]!;
   const rule = priorNoticeRuleOf(shard, ruleIdx);
-  const rules = flex.bookingRules;
-  const bookingTypeRaw = ruleIdx !== null ? (rules.bookingType[ruleIdx] ?? 1) : 1;
+  const rules = shard.bookingRules;
+  const resolved = rules !== null && ruleIdx !== null;
+  const bookingTypeRaw = resolved ? (rules.bookingType[ruleIdx] ?? 1) : 1;
   const bookingType: 0 | 1 | 2 = bookingTypeRaw === 0 || bookingTypeRaw === 2 ? bookingTypeRaw : 1;
-  const message = ruleIdx !== null ? (rules.message[ruleIdx] ?? null) : null;
-  const phoneNumber = ruleIdx !== null ? (rules.phoneNumber[ruleIdx] ?? null) : null;
-  const infoUrl = ruleIdx !== null ? (rules.infoUrl[ruleIdx] ?? null) : null;
+  const message = resolved ? (rules.message[ruleIdx] ?? null) : null;
+  const phoneNumber = resolved ? (rules.phoneNumber[ruleIdx] ?? null) : null;
+  const infoUrl = resolved ? (rules.infoUrl[ruleIdx] ?? null) : null;
 
   // spokenGuidanceはbooking_rules.txtのmessage列を正本とし、言い換え・要約をしない
   // （docs/14 3.4節、CLAUDE.md Don't）。message欠損時のみ構造化列から定型文を組み立てる。

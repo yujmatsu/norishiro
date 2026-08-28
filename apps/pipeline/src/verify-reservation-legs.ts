@@ -1,4 +1,5 @@
-// 実データで T-26（pickup_type/drop_off_type の反映）を検証する。
+// 実データで T-26（pickup_type/drop_off_type の反映）と C-24（予約制定時便への
+// 締切・連絡先の添付）を検証する。
 //
 // 対象は高知県の「予約が必要な定時便」。土佐清水市は stop_times 168行すべてに
 // pickup_type=2（要電話連絡）と pickup_booking_rule_id が付く（docs/17 C-24）。
@@ -12,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { KNOWN_FEED_FILES, parseFlexFeed, type FlexFeedFiles } from "@norishiro/gtfs";
 import { loadShard, plan } from "@norishiro/router";
 import type { ParsedFlexFeed, Shard } from "@norishiro/types";
+import { compressBookingRules, formatGtfsTime } from "./shard-booking-rules.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.join(here, "..", "..", "..");
@@ -106,6 +108,8 @@ function buildShard(feed: ParsedFlexFeed, windowFrom: Date): Shard {
     tripDates.push(t.serviceId !== undefined ? (serviceDates.get(t.serviceId) ?? []) : []);
   }
 
+  const { bookingRules, ruleIdxOf } = compressBookingRules(n.bookingRules);
+
   const st: Shard["stopTimes"] = {
     tripIdx: [],
     stopSequence: [],
@@ -114,6 +118,8 @@ function buildShard(feed: ParsedFlexFeed, windowFrom: Date): Shard {
     departureSec: [],
     pickupType: [],
     dropOffType: [],
+    pickupBookingRuleIdx: [],
+    dropOffBookingRuleIdx: [],
   };
   for (const row of n.stopTimes) {
     if (row.locationRef.kind !== "stop") continue; // 停留所参照の行のみ
@@ -130,13 +136,23 @@ function buildShard(feed: ParsedFlexFeed, windowFrom: Date): Shard {
     st.departureSec.push(dep);
     st.pickupType.push(row.pickupType);
     st.dropOffType.push(row.dropOffType);
+    st.pickupBookingRuleIdx!.push(
+      row.pickupBookingRuleId !== undefined
+        ? (ruleIdxOf.get(row.pickupBookingRuleId) ?? null)
+        : null,
+    );
+    st.dropOffBookingRuleIdx!.push(
+      row.dropOffBookingRuleId !== undefined
+        ? (ruleIdxOf.get(row.dropOffBookingRuleId) ?? null)
+        : null,
+    );
   }
 
   return {
     meta: {
       shardId: "verify",
       shardKind: "prefecture",
-      schemaVersion: 1,
+      schemaVersion: 2,
       generatedAt: new Date(windowFrom).toISOString(),
       calendarWindow: { from: isoDate(windowFrom), to: isoDate(windowFrom) },
       sourceFeedIds: ["verify"],
@@ -163,6 +179,7 @@ function buildShard(feed: ParsedFlexFeed, windowFrom: Date): Shard {
       headsign: tripIds.map(() => null),
     },
     stopTimes: st,
+    bookingRules,
     flex: null,
     transfers: { fromStopIdx: [], toStopIdx: [], distanceM: [], walkSec: [] },
   };
@@ -214,11 +231,14 @@ function main(): void {
     const depSec = (from.departureTime ?? from.arrivalTime ?? 0) - 600;
 
     loadShard(shard);
+    // 締切超過で挙動が変わらないよう、探索基準時刻を対象サービス日の0時に固定する
+    // （実行日時に依存しない再現可能な検証にする）
     const result = plan({
       origin: { kind: "stopId", stopId: from.locationRef.stopId },
       destination: { kind: "stopId", stopId: to.locationRef.stopId },
       departureTime: depSec,
       serviceDate,
+      searchTime: { serviceDate, nowSec: 0 },
     });
 
     console.log(`\n=== ${agency} ===`);
@@ -241,6 +261,21 @@ function main(): void {
           `boardingRequirement=${leg.boardingRequirement ?? "(なし)"} ` +
           `alightingRequirement=${leg.alightingRequirement ?? "(なし)"}`,
       );
+      if (leg.booking === undefined) {
+        // 予約が必要なのに締切・連絡先が無い状態（実データで20フィードが該当、docs/20 §2.3）
+        console.log("  booking: (添付なし＝フィードが締切・連絡先を提供していない)");
+        continue;
+      }
+      const deadline =
+        leg.booking.deadline === undefined
+          ? "(不明)"
+          : `${formatGtfsTime(((leg.booking.deadline % 86400) + 86400) % 86400)}` +
+            `${leg.booking.deadline < 0 ? "（前日以前）" : ""}`;
+      console.log(
+        `  booking: 締切=${deadline} tel=${leg.booking.phoneNumber ?? "-"} ` +
+          `infoUrl=${leg.booking.infoUrl ?? "-"}`,
+      );
+      if (leg.booking.message !== undefined) console.log(`  booking.message: ${leg.booking.message}`);
     }
     const rule = from.pickupBookingRuleId
       ? n.bookingRules.get(from.pickupBookingRuleId)

@@ -29,12 +29,25 @@ function refKind(r: LocationRef): string {
   return r.kind;
 }
 
+/** シャード契約上、その事業者のデータをどの経路で扱うか */
+type ShardRoute =
+  /** location_group＋時間窓のエリア型デマンド → Flex仮想レッグ（FlexData.flexTrips） */
+  | "flex_area"
+  /** 停留所参照の予約制定時便 → 通常のstop_times＋予約ルール参照（schemaVersion 2、docs/17 C-24） */
+  | "reserved_fixed";
+
 interface Verdict {
   agency: string;
-  /** 現行シャード契約（flexTrips.locationGroupIdx 必須）で表現できるか */
+  /** 現行シャード契約（docs/12 4章 schemaVersion 2）で表現できるか */
   shardRepresentable: boolean;
+  routes: ShardRoute[];
   reasons: string[];
 }
+
+const ROUTE_LABEL: Record<ShardRoute, string> = {
+  flex_area: "Flex仮想レッグ",
+  reserved_fixed: "予約制定時便",
+};
 
 function inspect(agency: string, feed: ParsedFlexFeed): Verdict {
   const n = feed.normalized;
@@ -92,28 +105,35 @@ function inspect(agency: string, feed: ParsedFlexFeed): Verdict {
     );
   }
 
-  // ---- 現行シャード契約で表現可能かの判定
-  //  build-mizuho-shard.ts は flexTrips.locationGroupIdx に location_group を必須で入れる。
-  //  停留所参照のFlex行は、この契約のままでは載せられない。
+  // ---- 現行シャード契約（docs/12 4章 schemaVersion 2）で表現可能かの判定
+  //  location_group参照＋時間窓の行は FlexData.flexTrips に載る（Flex仮想レッグ）。
+  //  停留所参照の行は CompressedStopTimes.pickupBookingRuleIdx に載る（予約制定時便、docs/17 C-24）。
+  //  locations.geojson参照・場所未解決の行はどちらの経路にも載らない（docs/13 NS-5）。
   const groupRows = flexRowKinds.get("locationGroup") ?? 0;
   const stopRows = flexRowKinds.get("stop") ?? 0;
   const locRows = flexRowKinds.get("location") ?? 0;
   const unresolved = flexRowKinds.get("unresolved") ?? 0;
 
-  if (flexRows.length === 0)
-    reasons.push("予約ルール付きのstop_times行が無い（Flexレッグを作れない）");
-  if (stopRows > 0)
-    reasons.push(`停留所参照のFlex行が${stopRows}件（現行シャードはlocation_group前提）`);
-  if (locRows > 0)
-    reasons.push(`locations.geojson参照のFlex行が${locRows}件（現行シャード非対応）`);
-  if (unresolved > 0) reasons.push(`場所未解決のFlex行が${unresolved}件`);
-  if (withWindow === 0 && flexRows.length > 0) reasons.push("時間窓(pickupWindow)が無いFlex行のみ");
+  const routes: ShardRoute[] = [];
+  if (groupRows > 0) routes.push("flex_area");
+  if (stopRows > 0) routes.push("reserved_fixed");
 
-  const shardRepresentable = groupRows > 0 && stopRows === 0 && locRows === 0 && unresolved === 0;
-  console.log(`  → 現行シャード契約で表現可能: ${shardRepresentable ? "はい" : "いいえ"}`);
+  if (flexRows.length === 0) reasons.push("予約ルール付きのstop_times行が無い");
+  if (locRows > 0)
+    reasons.push(`locations.geojson参照のFlex行が${locRows}件（docs/13 NS-5により非対応）`);
+  if (unresolved > 0) reasons.push(`場所未解決のFlex行が${unresolved}件`);
+  // 時間窓が無いのはエリア型では欠落だが、予約制定時便では正常（時刻表を持つため）
+  if (groupRows > 0 && withWindow === 0)
+    reasons.push("location_group参照の行に時間窓(pickupWindow)が無い");
+
+  const shardRepresentable = routes.length > 0 && locRows === 0 && unresolved === 0;
+  console.log(
+    `  → 現行シャード契約で表現可能: ${shardRepresentable ? "はい" : "いいえ"}` +
+      (routes.length > 0 ? `（経路: ${routes.map((r) => ROUTE_LABEL[r]).join("＋")}）` : ""),
+  );
   for (const r of reasons) console.log(`     - ${r}`);
 
-  return { agency, shardRepresentable, reasons };
+  return { agency, shardRepresentable, routes, reasons };
 }
 
 function main(): void {
@@ -123,7 +143,10 @@ function main(): void {
     );
     process.exit(1);
   }
-  const dirs = readdirSync(flexRoot).filter((d) => statSync(path.join(flexRoot, d)).isDirectory());
+  // 隠しディレクトリ（.claude等、ツールが作る作業用フォルダ）はフィードではない
+  const dirs = readdirSync(flexRoot).filter(
+    (d) => !d.startsWith(".") && statSync(path.join(flexRoot, d)).isDirectory(),
+  );
   console.log(`検分対象 ${dirs.length} フィード（${flexRoot}）`);
 
   const verdicts: Verdict[] = [];
@@ -140,7 +163,13 @@ function main(): void {
   console.log(`警告合計: ${totalWarnings}件`);
   const ok = verdicts.filter((v) => v.shardRepresentable);
   const ng = verdicts.filter((v) => !v.shardRepresentable);
-  console.log(`現行シャード契約で表現可能: ${ok.length}件 ${ok.map((v) => v.agency).join("、")}`);
+  console.log(`現行シャード契約で表現可能: ${ok.length}件`);
+  for (const route of ["flex_area", "reserved_fixed"] as const) {
+    const hit = ok.filter((v) => v.routes.includes(route));
+    if (hit.length > 0) {
+      console.log(`  ${ROUTE_LABEL[route]}: ${hit.length}件 ${hit.map((v) => v.agency).join("、")}`);
+    }
+  }
   console.log(`表現不可（要拡張）: ${ng.length}件`);
   for (const v of ng) console.log(`  ${v.agency}: ${v.reasons.join(" / ")}`);
 }

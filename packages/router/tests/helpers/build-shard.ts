@@ -21,6 +21,10 @@ export interface TripSpec {
   pickupTypes?: number[];
   /** 各停留所のdrop_off_type（docs/10 2.5.1節）。省略時は全て0（通常の降車） */
   dropOffTypes?: number[];
+  /** 各停留所の乗車側予約ルール参照（spec.bookingRules内の添字）。省略時は全て参照なし */
+  pickupBookingRuleIdx?: (number | null)[];
+  /** 各停留所の降車側予約ルール参照。省略時は全て参照なし */
+  dropOffBookingRuleIdx?: (number | null)[];
 }
 
 export interface FlexTripSpec {
@@ -38,8 +42,13 @@ export interface BookingRuleSpec {
   bookingRuleId: string;
   bookingType: number;
   priorNoticeDurationMin?: number | null;
+  /** bookingType=2（前日以前）用。何日前までか */
+  priorNoticeLastDay?: number | null;
+  /** bookingType=2用。"HH:MM:SS" */
+  priorNoticeLastTime?: string | null;
   message?: string | null;
   phoneNumber?: string | null;
+  infoUrl?: string | null;
 }
 
 export interface TransferSpec {
@@ -91,6 +100,8 @@ export function buildShard(spec: ShardSpec): Shard {
     departureSec: [],
     pickupType: [],
     dropOffType: [],
+    pickupBookingRuleIdx: [],
+    dropOffBookingRuleIdx: [],
   };
 
   for (const t of spec.trips ?? []) {
@@ -107,6 +118,8 @@ export function buildShard(spec: ShardSpec): Shard {
       stopTimes.departureSec.push(t.times[seq]!);
       stopTimes.pickupType.push(t.pickupTypes?.[seq] ?? 0);
       stopTimes.dropOffType.push(t.dropOffTypes?.[seq] ?? 0);
+      stopTimes.pickupBookingRuleIdx?.push(t.pickupBookingRuleIdx?.[seq] ?? null);
+      stopTimes.dropOffBookingRuleIdx?.push(t.dropOffBookingRuleIdx?.[seq] ?? null);
     });
   }
 
@@ -146,19 +159,23 @@ export function buildShard(spec: ShardSpec): Shard {
             meanDurationFactor: flexTripSpecs.map(() => null),
             meanDurationOffset: flexTripSpecs.map(() => null),
           },
-          bookingRules: {
-            bookingRuleId: (spec.bookingRules ?? []).map((b) => b.bookingRuleId),
-            bookingType: (spec.bookingRules ?? []).map((b) => b.bookingType),
-            priorNoticeDurationMin: (spec.bookingRules ?? []).map(
-              (b) => b.priorNoticeDurationMin ?? null,
-            ),
-            priorNoticeDurationMax: (spec.bookingRules ?? []).map(() => null),
-            priorNoticeLastDay: (spec.bookingRules ?? []).map(() => null),
-            priorNoticeLastTime: (spec.bookingRules ?? []).map(() => null),
-            message: (spec.bookingRules ?? []).map((b) => b.message ?? null),
-            phoneNumber: (spec.bookingRules ?? []).map((b) => b.phoneNumber ?? null),
-            infoUrl: (spec.bookingRules ?? []).map(() => null),
-          },
+        };
+
+  const ruleSpecs = spec.bookingRules ?? [];
+  // 予約ルールはシャードのトップレベルが正本（docs/12 4.4節、schemaVersion 2）
+  const bookingRules: Shard["bookingRules"] =
+    ruleSpecs.length === 0
+      ? null
+      : {
+          bookingRuleId: ruleSpecs.map((b) => b.bookingRuleId),
+          bookingType: ruleSpecs.map((b) => b.bookingType),
+          priorNoticeDurationMin: ruleSpecs.map((b) => b.priorNoticeDurationMin ?? null),
+          priorNoticeDurationMax: ruleSpecs.map(() => null),
+          priorNoticeLastDay: ruleSpecs.map((b) => b.priorNoticeLastDay ?? null),
+          priorNoticeLastTime: ruleSpecs.map((b) => b.priorNoticeLastTime ?? null),
+          message: ruleSpecs.map((b) => b.message ?? null),
+          phoneNumber: ruleSpecs.map((b) => b.phoneNumber ?? null),
+          infoUrl: ruleSpecs.map((b) => b.infoUrl ?? null),
         };
 
   const transfers: Shard["transfers"] = {
@@ -179,7 +196,7 @@ export function buildShard(spec: ShardSpec): Shard {
     meta: {
       shardId: "test",
       shardKind: "prefecture",
-      schemaVersion: 1,
+      schemaVersion: 2,
       generatedAt: "2026-07-02T00:00:00Z",
       calendarWindow: { from: defaultDate, to: defaultDate },
       sourceFeedIds: ["test-feed"],
@@ -201,6 +218,7 @@ export function buildShard(spec: ShardSpec): Shard {
     },
     trips,
     stopTimes,
+    bookingRules,
     flex,
     transfers,
   };

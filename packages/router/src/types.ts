@@ -46,7 +46,6 @@ export interface FlexGroupTable {
   dropoffWindowStart: Int32Array;
   dropoffWindowEnd: Int32Array;
   dropoffBookingRuleIdx: Int32Array;
-  bookingRules: BookingRuleTable;
   durationEstimatorParams: DurationEstimatorParams;
 }
 
@@ -83,6 +82,10 @@ export interface RouterShard {
   stopTimesPickupType: Uint8Array;
   /** stop_timesのdrop_off_type（docs/10 2.5.1節）。添字はstopTimesArrivalと同じ */
   stopTimesDropOffType: Uint8Array;
+  /** 乗車側の予約ルール参照（bookingRulesへの添字、未設定は-1）。添字はstopTimesArrivalと同じ */
+  stopTimesPickupBookingRuleIdx: Int32Array;
+  /** 降車側の予約ルール参照（bookingRulesへの添字、未設定は-1）。添字はstopTimesArrivalと同じ */
+  stopTimesDropOffBookingRuleIdx: Int32Array;
   tripServiceDates: number[][];
 
   stopRoutesStart: Uint32Array;
@@ -100,6 +103,11 @@ export interface RouterShard {
   /** serviceDate -> Flex tripのアクティブビット */
   activeFlexBitsCache: Map<number, Uint8Array>;
 
+  /**
+   * 予約ルールの正本（docs/12 4.4節）。Flexレッグと予約制定時便の両方が参照する。
+   * 予約ルールを持つフィードが1つも無ければnull。
+   */
+  bookingRules: BookingRuleTable | null;
   flex: FlexGroupTable | null;
   grid: GridIndex;
 }
