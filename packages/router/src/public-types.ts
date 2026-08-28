@@ -31,6 +31,15 @@ export interface WalkLeg {
   distanceMeters: number;
 }
 
+/**
+ * 乗降にあたって利用者が取る必要のある手続き（docs/10 2.5.1節の
+ * `pickup_type`/`drop_off_type` の値2・3に対応）。
+ * - `phone_agency`: 事業者への電話連絡が必要（値2）
+ * - `coordinate_with_driver`: 運転手との調整が必要（値3）
+ * 値1（乗車不可／降車不可）は経路として成立しないため、ここには現れない。
+ */
+export type BoardingRequirement = "phone_agency" | "coordinate_with_driver";
+
 export interface TransitLeg {
   kind: "transit";
   routeId: string;
@@ -41,6 +50,10 @@ export interface TransitLeg {
   arrivalTime: number;
   /** 経由する中間停留所のstopId列（表示用、任意） */
   intermediateStopIds?: string[];
+  /** 乗車に手続きが必要な場合のみ設定（pickup_type=2/3）。通常の乗車では未定義 */
+  boardingRequirement?: BoardingRequirement;
+  /** 降車に手続きが必要な場合のみ設定（drop_off_type=2/3）。通常の降車では未定義 */
+  alightingRequirement?: BoardingRequirement;
 }
 
 export interface FlexBookingInfo {
@@ -73,7 +86,12 @@ export interface ItinerarySummary {
   arrivalTime: number;
   durationSec: number;
   transferCount: number;
-  /** legsのいずれかがFlexを含む場合true */
+  /**
+   * 事前の予約・連絡が必要な行程か。
+   * Flexレッグを含む場合、または固定路線レッグの乗降に事業者への電話連絡が必要
+   * （`pickup_type`/`drop_off_type`=2）な場合にtrue。
+   * 運転手との調整のみ（値3）は事前予約ではないためtrueにしない。
+   */
   requiresBooking: boolean;
 }
 

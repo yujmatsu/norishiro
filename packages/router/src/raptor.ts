@@ -75,6 +75,24 @@ function stopTimeDeparture(shard: RouterShard, tripIdx: number, seqIdx: number):
   return shard.stopTimesDeparture[shard.tripStopTimesOffset[tripIdx]! + seqIdx]!;
 }
 
+/** その行で乗車できるか（docs/10 2.5.1節: pickup_type=1は乗車不可） */
+function canBoard(shard: RouterShard, tripIdx: number, seqIdx: number): boolean {
+  return shard.stopTimesPickupType[shard.tripStopTimesOffset[tripIdx]! + seqIdx]! !== 1;
+}
+
+/** その行で降車できるか（docs/10 2.5.1節: drop_off_type=1は降車不可） */
+function canAlight(shard: RouterShard, tripIdx: number, seqIdx: number): boolean {
+  return shard.stopTimesDropOffType[shard.tripStopTimesOffset[tripIdx]! + seqIdx]! !== 1;
+}
+
+function pickupTypeOf(shard: RouterShard, tripIdx: number, seqIdx: number): number {
+  return shard.stopTimesPickupType[shard.tripStopTimesOffset[tripIdx]! + seqIdx]!;
+}
+
+function dropOffTypeOf(shard: RouterShard, tripIdx: number, seqIdx: number): number {
+  return shard.stopTimesDropOffType[shard.tripStopTimesOffset[tripIdx]! + seqIdx]!;
+}
+
 /** seqIdx位置でtime以降に出発する最速のアクティブなtripを探す（routeTripsは出発時刻順ソート済み） */
 function earliestTripDepartingAtOrAfter(
   shard: RouterShard,
@@ -115,7 +133,8 @@ function scanRoute(
     const stopIdx = shard.routeStops[stopsStart + seqIdx]!;
 
     // (i) 乗車中とみなしているtripでの到着改善判定
-    if (currentTrip >= 0) {
+    //     降車不可（drop_off_type=1）の停留所では降りられないため改善に使えない
+    if (currentTrip >= 0 && canAlight(shard, currentTrip, seqIdx)) {
       const arrivalSec = stopTimeArrival(shard, currentTrip, seqIdx);
       if (arrivalSec < Math.min(tauCur[stopIdx]!, targetPrune)) {
         tauCur[stopIdx] = arrivalSec;
@@ -131,6 +150,8 @@ function scanRoute(
           alightSeqIdx: seqIdx,
           departSec: stopTimeDeparture(shard, currentTrip, boardedAtSeqIdx),
           arriveSec: arrivalSec,
+          boardPickupType: pickupTypeOf(shard, currentTrip, boardedAtSeqIdx),
+          alightDropOffType: dropOffTypeOf(shard, currentTrip, seqIdx),
           round: k,
         };
       }
@@ -150,6 +171,8 @@ function scanRoute(
         );
         if (
           candidate >= 0 &&
+          // 乗車不可（pickup_type=1）の停留所では乗り込めない
+          canBoard(shard, candidate, seqIdx) &&
           (currentTrip < 0 ||
             stopTimeDeparture(shard, candidate, seqIdx) <
               stopTimeDeparture(shard, currentTrip, seqIdx))

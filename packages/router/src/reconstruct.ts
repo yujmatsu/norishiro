@@ -1,7 +1,28 @@
 // Pareto枝刈りと結果の再構成（docs/13 6章）。
 import type { EgressTarget } from "./raptor.js";
-import type { FlexLeg, Itinerary, Leg, LocationRef, TransitLeg, WalkLeg } from "./public-types.js";
+import type {
+  BoardingRequirement,
+  FlexLeg,
+  Itinerary,
+  Leg,
+  LocationRef,
+  TransitLeg,
+  WalkLeg,
+} from "./public-types.js";
 import type { LegRecord, RaptorState, RouterShard } from "./types.js";
+
+/**
+ * pickup_type/drop_off_type を公開契約のBoardingRequirementへ写す（docs/10 2.5.1節）。
+ * 0・空（通常）と1（乗降不可、そもそも経路に現れない）はキーを立てない。
+ */
+function boardingRequirementOf<K extends string>(
+  type: number,
+  key: K,
+): Partial<Record<K, BoardingRequirement>> {
+  if (type === 2) return { [key]: "phone_agency" } as Record<K, BoardingRequirement>;
+  if (type === 3) return { [key]: "coordinate_with_driver" } as Record<K, BoardingRequirement>;
+  return {};
+}
 
 interface ParetoCandidate {
   round: number;
@@ -92,6 +113,8 @@ function toPublicLegs(
         departureTime: rec.departSec,
         arrivalTime: rec.arriveSec,
         ...(intermediate.length > 0 ? { intermediateStopIds: intermediate } : {}),
+        ...boardingRequirementOf(rec.boardPickupType, "boardingRequirement"),
+        ...boardingRequirementOf(rec.alightDropOffType, "alightingRequirement"),
       };
       legs.push(transitLeg);
       currentTime = rec.arriveSec;
@@ -176,7 +199,15 @@ export function reconstructItineraries(
         arrivalTime: candidate.arrival,
         durationSec: candidate.arrival - departureTime,
         transferCount: Math.max(0, vehicleLegs - 1),
-        requiresBooking: legs.some((l) => l.kind === "flex"),
+        // Flexレッグ、または固定路線で事業者への電話連絡が必要な乗降を含む場合に立てる。
+        // 運転手との調整のみ（値3）は事前予約ではないため含めない。
+        requiresBooking: legs.some(
+          (l) =>
+            l.kind === "flex" ||
+            (l.kind === "transit" &&
+              (l.boardingRequirement === "phone_agency" ||
+                l.alightingRequirement === "phone_agency")),
+        ),
       },
     });
   }

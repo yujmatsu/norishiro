@@ -17,6 +17,10 @@ export interface TripSpec {
   times: number[];
   /** 運行日（YYYY-MM-DD）。省略時はdefaultDate */
   dates?: string[];
+  /** 各停留所のpickup_type（docs/10 2.5.1節）。省略時は全て0（通常の乗車） */
+  pickupTypes?: number[];
+  /** 各停留所のdrop_off_type（docs/10 2.5.1節）。省略時は全て0（通常の降車） */
+  dropOffTypes?: number[];
 }
 
 export interface FlexTripSpec {
@@ -101,8 +105,8 @@ export function buildShard(spec: ShardSpec): Shard {
       stopTimes.stopIdx.push(idx(stopId));
       stopTimes.arrivalSec.push(t.times[seq]!);
       stopTimes.departureSec.push(t.times[seq]!);
-      stopTimes.pickupType.push(0);
-      stopTimes.dropOffType.push(0);
+      stopTimes.pickupType.push(t.pickupTypes?.[seq] ?? 0);
+      stopTimes.dropOffType.push(t.dropOffTypes?.[seq] ?? 0);
     });
   }
 
